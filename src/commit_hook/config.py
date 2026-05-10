@@ -16,16 +16,47 @@ _DEF_MODEL = "gpt-4o"
 _DEF_MAX_SUBJECT = 72
 _DEF_MAX_BODY = 100
 _DEF_BLANK_LINE = True
-_DEF_CONTEXT = 3
+_DEF_EXCLUDE: list[str] = [
+    "*.lock",
+    "package-lock.json",
+    "yarn.lock",
+    "*.min.js",
+    "*.map",
+    "*.svg",
+    "*.png",
+    "*.jpg",
+    "*.jpeg",
+    "*.gif",
+    "*.ico",
+    "*.webp",
+    "*.env*",
+    "*secret*",
+    "*.pem",
+]
+_DEF_MAX_LINES = 500
 _DEF_ALLOWED: list[str] = [
-    "feat", "fix", "docs", "style", "refactor", "perf", "test", "chore", "ci", "build",
+    "feat",
+    "fix",
+    "docs",
+    "style",
+    "refactor",
+    "perf",
+    "test",
+    "chore",
+    "ci",
+    "build",
 ]
 _TOP = frozenset({"llm", "rules", "diff"})
 _LLM = frozenset({"provider", "model", "api_key_env"})
-_RULES = frozenset({
-    "max_subject_length", "max_body_line_length", "require_blank_line", "allowed_types",
-})
-_DIFF = frozenset({"context_lines"})
+_RULES = frozenset(
+    {
+        "max_subject_length",
+        "max_body_line_length",
+        "require_blank_line",
+        "allowed_types",
+    }
+)
+_DIFF = frozenset({"exclude", "max_lines"})
 
 
 class ConfigError(Exception):
@@ -35,6 +66,7 @@ class ConfigError(Exception):
 @dataclass
 class LLMConfig:
     """LLM provider configuration."""
+
     provider: str = _DEF_PROVIDER
     model: str = _DEF_MODEL
     api_key: str = ""
@@ -44,6 +76,7 @@ class LLMConfig:
 @dataclass
 class RulesConfig:
     """Commit message validation rules."""
+
     max_subject_length: int = _DEF_MAX_SUBJECT
     max_body_line_length: int = _DEF_MAX_BODY
     require_blank_line: bool = _DEF_BLANK_LINE
@@ -53,12 +86,15 @@ class RulesConfig:
 @dataclass
 class DiffConfig:
     """Diff processing configuration."""
-    context_lines: int = _DEF_CONTEXT
+
+    exclude: list[str] = field(default_factory=lambda: list(_DEF_EXCLUDE))
+    max_lines: int = _DEF_MAX_LINES
 
 
 @dataclass
 class Config:
     """Top-level commit-hook configuration."""
+
     llm: LLMConfig = field(default_factory=LLMConfig)
     rules: RulesConfig = field(default_factory=RulesConfig)
     diff: DiffConfig = field(default_factory=DiffConfig)
@@ -124,8 +160,7 @@ def _parse(config_path: Path) -> Config:
         key = os.environ.get(llm.api_key_env)
         if key is None:
             raise ConfigError(
-                f"Environment variable '{llm.api_key_env}' "
-                f"(set via llm.api_key_env) is not defined"
+                f"Environment variable '{llm.api_key_env}' (set via llm.api_key_env) is not defined"
             )
         llm.api_key = key
     return Config(llm=llm, rules=rules, diff=diff)
@@ -155,7 +190,10 @@ def _parse_rules(raw: dict[str, Any]) -> RulesConfig:
 def _parse_diff(raw: dict[str, Any]) -> DiffConfig:
     """Parse diff config section."""
     _warn(raw, _DIFF)
-    return DiffConfig(context_lines=_get_int(raw, "context_lines", _DEF_CONTEXT))
+    return DiffConfig(
+        exclude=_get_list(raw, "exclude", _DEF_EXCLUDE),
+        max_lines=_get_int(raw, "max_lines", _DEF_MAX_LINES),
+    )
 
 
 def _warn(data: dict[str, Any], known: frozenset[str]) -> None:

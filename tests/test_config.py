@@ -15,8 +15,9 @@ from commit_hook.config import (
     _CFG,
     _DEF_ALLOWED,
     _DEF_BLANK_LINE,
-    _DEF_CONTEXT,
+    _DEF_EXCLUDE,
     _DEF_MAX_BODY,
+    _DEF_MAX_LINES,
     _DEF_MAX_SUBJECT,
     _DEF_MODEL,
     _DEF_PROVIDER,
@@ -65,7 +66,8 @@ def test_defaults_when_no_config(temp_dir: Path) -> None:
     assert cfg.rules.max_body_line_length == _DEF_MAX_BODY
     assert cfg.rules.require_blank_line is _DEF_BLANK_LINE
     assert cfg.rules.allowed_types == _DEF_ALLOWED
-    assert cfg.diff.context_lines == _DEF_CONTEXT
+    assert cfg.diff.exclude == _DEF_EXCLUDE
+    assert cfg.diff.max_lines == _DEF_MAX_LINES
 
 
 def test_default_dataclass_constructors() -> None:
@@ -73,7 +75,8 @@ def test_default_dataclass_constructors() -> None:
     cfg = Config()
     assert cfg.llm.provider == _DEF_PROVIDER
     assert cfg.rules.max_subject_length == _DEF_MAX_SUBJECT
-    assert cfg.diff.context_lines == _DEF_CONTEXT
+    assert cfg.diff.exclude == _DEF_EXCLUDE
+    assert cfg.diff.max_lines == _DEF_MAX_LINES
 
 
 # ---------------------------------------------------------------------------
@@ -83,20 +86,22 @@ def test_default_dataclass_constructors() -> None:
 
 def test_full_config(use_config: Callable[[dict[str, Any]], None]) -> None:
     """All fields are loaded from a complete config file."""
-    use_config({
-        "llm": {
-            "provider": "anthropic",
-            "model": "claude-3-opus",
-            "api_key_env": "ANTHROPIC_API_KEY",
-        },
-        "rules": {
-            "max_subject_length": 50,
-            "max_body_line_length": 72,
-            "require_blank_line": False,
-            "allowed_types": ["feat", "fix", "chore"],
-        },
-        "diff": {"context_lines": 5},
-    })
+    use_config(
+        {
+            "llm": {
+                "provider": "anthropic",
+                "model": "claude-3-opus",
+                "api_key_env": "ANTHROPIC_API_KEY",
+            },
+            "rules": {
+                "max_subject_length": 50,
+                "max_body_line_length": 72,
+                "require_blank_line": False,
+                "allowed_types": ["feat", "fix", "chore"],
+            },
+            "diff": {"exclude": ["*.lock", "*.min.js"], "max_lines": 300},
+        }
+    )
     with pytest.MonkeyPatch.context() as mp:
         mp.setenv("ANTHROPIC_API_KEY", "sk-ant-secret")
         cfg = load_config()
@@ -108,7 +113,8 @@ def test_full_config(use_config: Callable[[dict[str, Any]], None]) -> None:
     assert cfg.rules.max_body_line_length == 72
     assert cfg.rules.require_blank_line is False
     assert cfg.rules.allowed_types == ["feat", "fix", "chore"]
-    assert cfg.diff.context_lines == 5
+    assert cfg.diff.exclude == ["*.lock", "*.min.js"]
+    assert cfg.diff.max_lines == 300
 
 
 def test_partial_config_falls_back_to_defaults(
@@ -139,9 +145,7 @@ def test_empty_config_file(temp_dir: Path) -> None:
 def test_upward_search(temp_dir: Path) -> None:
     """Config is found by walking up from a subdirectory."""
     config_path = temp_dir / _CFG
-    config_path.write_text(
-        yaml.dump({"llm": {"provider": "deepseek"}}), encoding="utf-8"
-    )
+    config_path.write_text(yaml.dump({"llm": {"provider": "deepseek"}}), encoding="utf-8")
     sub = temp_dir / "a" / "b"
     sub.mkdir(parents=True)
     os.chdir(sub)
@@ -161,18 +165,16 @@ def test_upward_search_stops_at_root(temp_dir: Path) -> None:
 def test_explicit_file_path(temp_dir: Path) -> None:
     """load_config with an explicit file path loads that config."""
     p = temp_dir / "custom.yaml"
-    p.write_text(yaml.dump({"diff": {"context_lines": 10}}), encoding="utf-8")
+    p.write_text(yaml.dump({"diff": {"max_lines": 100}}), encoding="utf-8")
     cfg = load_config(str(p))
-    assert cfg.diff.context_lines == 10
+    assert cfg.diff.max_lines == 100
 
 
 def test_explicit_dir_path(temp_dir: Path) -> None:
     """load_config with a directory path searches upward from there."""
-    (temp_dir / _CFG).write_text(
-        yaml.dump({"diff": {"context_lines": 12}}), encoding="utf-8"
-    )
+    (temp_dir / _CFG).write_text(yaml.dump({"diff": {"max_lines": 200}}), encoding="utf-8")
     cfg = load_config(str(temp_dir))
-    assert cfg.diff.context_lines == 12
+    assert cfg.diff.max_lines == 200
 
 
 # ---------------------------------------------------------------------------
@@ -302,11 +304,27 @@ def test_allowed_types_item_not_str(
         load_config()
 
 
-def test_context_lines_not_int(
+def test_max_lines_not_int(
     use_config: Callable[[dict[str, Any]], None],
 ) -> None:
-    use_config({"diff": {"context_lines": "three"}})
-    with pytest.raises(ConfigError, match="'context_lines' must be an integer"):
+    use_config({"diff": {"max_lines": "three"}})
+    with pytest.raises(ConfigError, match="'max_lines' must be an integer"):
+        load_config()
+
+
+def test_exclude_not_list(
+    use_config: Callable[[dict[str, Any]], None],
+) -> None:
+    use_config({"diff": {"exclude": "*.lock"}})
+    with pytest.raises(ConfigError, match="'exclude' must be a list"):
+        load_config()
+
+
+def test_exclude_item_not_str(
+    use_config: Callable[[dict[str, Any]], None],
+) -> None:
+    use_config({"diff": {"exclude": ["*.lock", 123]}})
+    with pytest.raises(ConfigError, match=r"exclude\[1\].*string"):
         load_config()
 
 
