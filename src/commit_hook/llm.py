@@ -71,15 +71,9 @@ def llm_evaluate(diff: str, message: str, cfg: LLMConfig) -> LLMResult:
         if cfg.api_base:
             kwargs["api_base"] = cfg.api_base
         resp = litellm.completion(**kwargs)
-    except (
-        litellm.exceptions.Timeout,
-        litellm.exceptions.APIError,
-        litellm.exceptions.APIConnectionError,
-        litellm.exceptions.AuthenticationError,
-        litellm.exceptions.InternalServerError,
-        litellm.exceptions.RateLimitError,
-        litellm.exceptions.ServiceUnavailableError,
-    ) as exc:
+    except Exception as exc:
+        # Any LLM call failure → degrade and allow the commit.
+        # litellm has 28+ exception types; whitelisting is fragile.
         raise LLMUnavailableError(f"LLM {type(exc).__name__}: {exc}") from exc
 
     raw = resp.choices[0].message.content
