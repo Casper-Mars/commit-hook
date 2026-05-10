@@ -13,9 +13,8 @@ import yaml
 _CFG = ".commit-hook.yaml"
 _DEF_PROVIDER = "openai"
 _DEF_MODEL = "gpt-4o"
-_DEF_MAX_SUBJECT = 72
-_DEF_MAX_BODY = 100
-_DEF_BLANK_LINE = True
+_DEF_MIN_LENGTH = 10
+_DEF_FORBID_PATTERNS: list[str] = ["^fix$", "^update$", "^WIP$", "^wip$"]
 _DEF_EXCLUDE: list[str] = [
     "*.lock",
     "package-lock.json",
@@ -34,28 +33,9 @@ _DEF_EXCLUDE: list[str] = [
     "*.pem",
 ]
 _DEF_MAX_LINES = 500
-_DEF_ALLOWED: list[str] = [
-    "feat",
-    "fix",
-    "docs",
-    "style",
-    "refactor",
-    "perf",
-    "test",
-    "chore",
-    "ci",
-    "build",
-]
 _TOP = frozenset({"llm", "rules", "diff"})
 _LLM = frozenset({"provider", "model", "api_key_env"})
-_RULES = frozenset(
-    {
-        "max_subject_length",
-        "max_body_line_length",
-        "require_blank_line",
-        "allowed_types",
-    }
-)
+_RULES = frozenset({"min_length", "forbid_patterns"})
 _DIFF = frozenset({"exclude", "max_lines"})
 
 
@@ -75,12 +55,10 @@ class LLMConfig:
 
 @dataclass
 class RulesConfig:
-    """Commit message validation rules."""
+    """Local rule check configuration."""
 
-    max_subject_length: int = _DEF_MAX_SUBJECT
-    max_body_line_length: int = _DEF_MAX_BODY
-    require_blank_line: bool = _DEF_BLANK_LINE
-    allowed_types: list[str] = field(default_factory=lambda: list(_DEF_ALLOWED))
+    min_length: int = _DEF_MIN_LENGTH
+    forbid_patterns: list[str] = field(default_factory=lambda: list(_DEF_FORBID_PATTERNS))
 
 
 @dataclass
@@ -180,10 +158,8 @@ def _parse_rules(raw: dict[str, Any]) -> RulesConfig:
     """Parse rules config section."""
     _warn(raw, _RULES)
     return RulesConfig(
-        max_subject_length=_get_int(raw, "max_subject_length", _DEF_MAX_SUBJECT),
-        max_body_line_length=_get_int(raw, "max_body_line_length", _DEF_MAX_BODY),
-        require_blank_line=_get(raw, "require_blank_line", bool, _DEF_BLANK_LINE),
-        allowed_types=_get_list(raw, "allowed_types", _DEF_ALLOWED),
+        min_length=_get_int(raw, "min_length", _DEF_MIN_LENGTH),
+        forbid_patterns=_get_list(raw, "forbid_patterns", _DEF_FORBID_PATTERNS),
     )
 
 

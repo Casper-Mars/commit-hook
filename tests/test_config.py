@@ -13,12 +13,10 @@ import yaml
 
 from commit_hook.config import (
     _CFG,
-    _DEF_ALLOWED,
-    _DEF_BLANK_LINE,
     _DEF_EXCLUDE,
-    _DEF_MAX_BODY,
+    _DEF_FORBID_PATTERNS,
     _DEF_MAX_LINES,
-    _DEF_MAX_SUBJECT,
+    _DEF_MIN_LENGTH,
     _DEF_MODEL,
     _DEF_PROVIDER,
     Config,
@@ -62,10 +60,8 @@ def test_defaults_when_no_config(temp_dir: Path) -> None:
     assert cfg.llm.model == _DEF_MODEL
     assert cfg.llm.api_key == ""
     assert cfg.llm.api_key_env == ""
-    assert cfg.rules.max_subject_length == _DEF_MAX_SUBJECT
-    assert cfg.rules.max_body_line_length == _DEF_MAX_BODY
-    assert cfg.rules.require_blank_line is _DEF_BLANK_LINE
-    assert cfg.rules.allowed_types == _DEF_ALLOWED
+    assert cfg.rules.min_length == _DEF_MIN_LENGTH
+    assert cfg.rules.forbid_patterns == _DEF_FORBID_PATTERNS
     assert cfg.diff.exclude == _DEF_EXCLUDE
     assert cfg.diff.max_lines == _DEF_MAX_LINES
 
@@ -74,7 +70,8 @@ def test_default_dataclass_constructors() -> None:
     """Dataclass constructors yield defaults."""
     cfg = Config()
     assert cfg.llm.provider == _DEF_PROVIDER
-    assert cfg.rules.max_subject_length == _DEF_MAX_SUBJECT
+    assert cfg.rules.min_length == _DEF_MIN_LENGTH
+    assert cfg.rules.forbid_patterns == _DEF_FORBID_PATTERNS
     assert cfg.diff.exclude == _DEF_EXCLUDE
     assert cfg.diff.max_lines == _DEF_MAX_LINES
 
@@ -94,10 +91,8 @@ def test_full_config(use_config: Callable[[dict[str, Any]], None]) -> None:
                 "api_key_env": "ANTHROPIC_API_KEY",
             },
             "rules": {
-                "max_subject_length": 50,
-                "max_body_line_length": 72,
-                "require_blank_line": False,
-                "allowed_types": ["feat", "fix", "chore"],
+                "min_length": 20,
+                "forbid_patterns": ["^tmp$", "^wip$"],
             },
             "diff": {"exclude": ["*.lock", "*.min.js"], "max_lines": 300},
         }
@@ -109,10 +104,8 @@ def test_full_config(use_config: Callable[[dict[str, Any]], None]) -> None:
     assert cfg.llm.model == "claude-3-opus"
     assert cfg.llm.api_key == "sk-ant-secret"
     assert cfg.llm.api_key_env == "ANTHROPIC_API_KEY"
-    assert cfg.rules.max_subject_length == 50
-    assert cfg.rules.max_body_line_length == 72
-    assert cfg.rules.require_blank_line is False
-    assert cfg.rules.allowed_types == ["feat", "fix", "chore"]
+    assert cfg.rules.min_length == 20
+    assert cfg.rules.forbid_patterns == ["^tmp$", "^wip$"]
     assert cfg.diff.exclude == ["*.lock", "*.min.js"]
     assert cfg.diff.max_lines == 300
 
@@ -126,7 +119,8 @@ def test_partial_config_falls_back_to_defaults(
     assert cfg.llm.provider == "gemini"
     assert cfg.llm.model == _DEF_MODEL
     assert cfg.llm.api_key_env == ""
-    assert cfg.rules.max_subject_length == _DEF_MAX_SUBJECT
+    assert cfg.rules.min_length == _DEF_MIN_LENGTH
+    assert cfg.rules.forbid_patterns == _DEF_FORBID_PATTERNS
 
 
 def test_empty_config_file(temp_dir: Path) -> None:
@@ -263,44 +257,36 @@ def test_model_not_string(
         load_config()
 
 
-def test_max_subject_length_not_int(
+def test_min_length_not_int(
     use_config: Callable[[dict[str, Any]], None],
 ) -> None:
-    use_config({"rules": {"max_subject_length": "long"}})
-    with pytest.raises(ConfigError, match="'max_subject_length' must be an integer"):
+    use_config({"rules": {"min_length": "long"}})
+    with pytest.raises(ConfigError, match="'min_length' must be an integer"):
         load_config()
 
 
-def test_max_body_line_length_bool(
+def test_min_length_bool_rejected(
     use_config: Callable[[dict[str, Any]], None],
 ) -> None:
     """bool is rejected even though it is an int subclass."""
-    use_config({"rules": {"max_body_line_length": True}})
-    with pytest.raises(ConfigError, match="'max_body_line_length' must be an integer"):
+    use_config({"rules": {"min_length": True}})
+    with pytest.raises(ConfigError, match="'min_length' must be an integer"):
         load_config()
 
 
-def test_require_blank_line_not_bool(
+def test_forbid_patterns_not_list(
     use_config: Callable[[dict[str, Any]], None],
 ) -> None:
-    use_config({"rules": {"require_blank_line": "yes"}})
-    with pytest.raises(ConfigError, match="'require_blank_line' must be a boolean"):
+    use_config({"rules": {"forbid_patterns": "^fix$"}})
+    with pytest.raises(ConfigError, match="'forbid_patterns' must be a list"):
         load_config()
 
 
-def test_allowed_types_not_list(
+def test_forbid_patterns_item_not_str(
     use_config: Callable[[dict[str, Any]], None],
 ) -> None:
-    use_config({"rules": {"allowed_types": "feat,fix"}})
-    with pytest.raises(ConfigError, match="'allowed_types' must be a list"):
-        load_config()
-
-
-def test_allowed_types_item_not_str(
-    use_config: Callable[[dict[str, Any]], None],
-) -> None:
-    use_config({"rules": {"allowed_types": ["feat", 1, "fix"]}})
-    with pytest.raises(ConfigError, match=r"allowed_types\[1\].*string"):
+    use_config({"rules": {"forbid_patterns": ["^fix$", 1, "^wip$"]}})
+    with pytest.raises(ConfigError, match=r"forbid_patterns\[1\].*string"):
         load_config()
 
 
@@ -354,13 +340,13 @@ def test_yaml_not_mapping(temp_dir: Path) -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_default_allowed_types_are_independent() -> None:
-    """Modifying one config's allowed_types does not affect another."""
+def test_default_forbid_patterns_are_independent() -> None:
+    """Modifying one config's forbid_patterns does not affect another."""
     cfg1 = Config()
     cfg2 = Config()
-    cfg1.rules.allowed_types.append("custom")
-    assert "custom" not in cfg2.rules.allowed_types
-    assert len(cfg2.rules.allowed_types) == len(_DEF_ALLOWED)
+    cfg1.rules.forbid_patterns.append("^tmp$")
+    assert "^tmp$" not in cfg2.rules.forbid_patterns
+    assert len(cfg2.rules.forbid_patterns) == len(_DEF_FORBID_PATTERNS)
 
 
 def test_api_key_env_not_set_means_no_resolution() -> None:
