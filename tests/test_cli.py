@@ -11,7 +11,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from click.testing import CliRunner
 
-from commit_hook.cli import HOOK_CONTENT, HOOK_PATH, main
+from commit_hook.cli import CONFIG_PATH, CONFIG_TEMPLATE, HOOK_CONTENT, HOOK_PATH, main
 from commit_hook.config import Config, LLMConfig, RulesConfig
 from commit_hook.llm import LLMResult, LLMUnavailableError
 
@@ -75,6 +75,66 @@ class TestInit:
         assert result.exit_code == 0
         assert "already exists" in result.output
         assert (tmp_path / HOOK_PATH).read_text() == existing
+
+    def test_init_generates_config(self, tmp_path: Path, monkeypatch: Any) -> None:
+        """config 不存在时，init 生成 .commit-hook.yaml + 安装 hook."""
+        git_dir = tmp_path / ".git" / "hooks"
+        git_dir.mkdir(parents=True)
+        monkeypatch.chdir(tmp_path)
+
+        result = CliRunner().invoke(main, ["init"])
+        assert result.exit_code == 0
+
+        # hook installed
+        hook_file = tmp_path / HOOK_PATH
+        assert hook_file.exists()
+        assert hook_file.read_text() == HOOK_CONTENT
+
+        # config generated
+        config_file = tmp_path / CONFIG_PATH
+        assert config_file.exists()
+        assert config_file.read_text() == CONFIG_TEMPLATE
+        assert ".commit-hook.yaml 已生成" in result.output
+
+    def test_init_config_exists_not_overwritten(self, tmp_path: Path, monkeypatch: Any) -> None:
+        """config 已存在时，不覆盖（验证内容不变）."""
+        git_dir = tmp_path / ".git" / "hooks"
+        git_dir.mkdir(parents=True)
+        monkeypatch.chdir(tmp_path)
+
+        existing_config = "llm:\n  provider: ollama\n  model: llama3\n"
+        (tmp_path / CONFIG_PATH).write_text(existing_config)
+
+        result = CliRunner().invoke(main, ["init"])
+        assert result.exit_code == 0
+
+        # config unchanged
+        assert (tmp_path / CONFIG_PATH).read_text() == existing_config
+        assert ".commit-hook.yaml 已存在，不覆盖" in result.output
+
+        # hook still installed (independent)
+        assert (tmp_path / HOOK_PATH).exists()
+
+    def test_init_config_generated_when_hook_exists(self, tmp_path: Path, monkeypatch: Any) -> None:
+        """hook 已存在但 config 不存在时，跳过 hook 但生成 config."""
+        git_dir = tmp_path / ".git" / "hooks"
+        git_dir.mkdir(parents=True)
+        existing_hook = "#!/bin/sh\necho old hook\n"
+        (tmp_path / HOOK_PATH).write_text(existing_hook)
+        monkeypatch.chdir(tmp_path)
+
+        result = CliRunner().invoke(main, ["init"])
+        assert result.exit_code == 0
+
+        # hook not overwritten
+        assert (tmp_path / HOOK_PATH).read_text() == existing_hook
+        assert "already exists" in result.output
+
+        # config generated
+        config_file = tmp_path / CONFIG_PATH
+        assert config_file.exists()
+        assert config_file.read_text() == CONFIG_TEMPLATE
+        assert ".commit-hook.yaml 已生成" in result.output
 
 
 class TestUninit:

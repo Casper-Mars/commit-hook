@@ -25,6 +25,39 @@ HOOK_CONTENT = """#!/usr/bin/env bash
 # commit-hook — installed by `commit-hook init`
 exec commit-hook check "$1"
 """
+CONFIG_PATH = ".commit-hook.yaml"
+CONFIG_TEMPLATE = """\
+# commit-hook 配置文件
+# 修改后立即生效，无需重新 init
+
+llm:
+  provider: openai           # openai | anthropic | ollama | deepseek | ...
+  model: gpt-4o-mini
+  api_key_env: OPENAI_API_KEY  # 从环境变量读取，不存明文
+  timeout: 10                # 秒
+
+rules:
+  min_length: 10             # message 最短字符数
+  forbid_patterns:           # 禁止的 message 模式（正则）
+    - "^fix$"
+    - "^update$"
+    - "^WIP$"
+
+diff:
+  max_lines: 500             # diff 最大行数，超出截断
+  exclude:                   # 排除的文件（glob 匹配）
+    - "package-lock.json"
+    - "yarn.lock"
+    - "*.lock"
+    - "*.min.js"
+    - "*.map"
+    - "*.svg"
+    - "*.png"
+
+output:
+  color: true                # 终端彩色输出
+  verbose: false             # 详细日志
+"""
 
 
 @click.group()
@@ -38,19 +71,30 @@ def main() -> None:
 
 @main.command()
 def init() -> None:
-    """Install commit-msg hook into .git/hooks/commit-msg.
+    """Install commit-msg hook and generate .commit-hook.yaml config template.
 
     Creates a shell wrapper that invokes ``commit-hook check`` for every
-    commit.  Does nothing when the hook already exists, printing a hint.
+    commit.  Skips hook installation when the hook already exists.
+    Also generates ``.commit-hook.yaml`` config template when missing,
+    and skips when already present (never overwrites user config).
     """
+    # hook installation (independent of config)
     hook_file = Path(HOOK_PATH)
     if hook_file.exists():
         click.echo(f"Hook already exists at {hook_file}, not overwriting.", err=True)
-        return
-    hook_file.parent.mkdir(parents=True, exist_ok=True)
-    hook_file.write_text(HOOK_CONTENT, encoding="utf-8")
-    hook_file.chmod(0o755)
-    click.echo(f"Hook installed at {hook_file}")
+    else:
+        hook_file.parent.mkdir(parents=True, exist_ok=True)
+        hook_file.write_text(HOOK_CONTENT, encoding="utf-8")
+        hook_file.chmod(0o755)
+        click.echo(f"Hook installed at {hook_file}")
+
+    # config template generation (independent of hook)
+    config_file = Path(CONFIG_PATH)
+    if config_file.exists():
+        click.echo(".commit-hook.yaml 已存在，不覆盖")
+    else:
+        config_file.write_text(CONFIG_TEMPLATE, encoding="utf-8")
+        click.echo(".commit-hook.yaml 已生成")
 
 
 @main.command()
