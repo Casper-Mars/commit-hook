@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 from dataclasses import dataclass, field
+from typing import Any
 
 import litellm
 
@@ -57,16 +58,19 @@ def llm_evaluate(diff: str, message: str, cfg: LLMConfig) -> LLMResult:
     )
 
     try:
-        resp = litellm.completion(
-            model=f"{cfg.provider}/{cfg.model}",
-            messages=[
+        kwargs: dict[str, Any] = {
+            "model": f"{cfg.provider}/{cfg.model}",
+            "messages": [
                 {"role": "system", "content": _SYSTEM_PROMPT},
                 {"role": "user", "content": prompt},
             ],
-            api_key=api_key,
-            timeout=10,
-            response_format={"type": "json_object"},
-        )
+            "api_key": api_key,
+            "timeout": 10,
+            "response_format": {"type": "json_object"},
+        }
+        if cfg.api_base:
+            kwargs["api_base"] = cfg.api_base
+        resp = litellm.completion(**kwargs)
     except (
         litellm.exceptions.Timeout,
         litellm.exceptions.APIError,

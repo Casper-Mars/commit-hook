@@ -156,6 +156,7 @@ Full `.commit-hook.yaml` with all options and defaults:
 llm:
   provider: openai              # openai / anthropic / deepseek / ollama / ...
   model: gpt-4o-mini
+  api_base: ""                  # Optional: custom API endpoint (Ollama/vLLM/enterprise gateway)
   api_key_env: OPENAI_API_KEY   # API key read from this env var (never store keys in config)
 
 rules:
@@ -202,6 +203,33 @@ in the config file. Set `llm.api_key_env` to the variable name, then export it i
 
 ```bash
 export OPENAI_API_KEY="sk-..."
+```
+
+### Custom API Endpoint
+
+Use `llm.api_base` to point to self-hosted or third-party API endpoints (Ollama, vLLM,
+enterprise gateway, etc.). When set to a non-empty URL, it is passed as the `api_base`
+argument to `litellm.completion`. Leave empty (default) for the provider's standard endpoint.
+
+```yaml
+# Ollama (local)
+llm:
+  provider: ollama
+  model: llama3
+  api_base: http://localhost:11434
+
+# vLLM (self-hosted)
+llm:
+  provider: openai
+  model: meta-llama/Llama-3-8b
+  api_base: http://localhost:8000/v1
+
+# Enterprise gateway
+llm:
+  provider: openai
+  model: gpt-4o
+  api_base: https://api.mycompany.com/v1
+  api_key_env: ENTERPRISE_API_KEY
 ```
 
 ## Skip Validation

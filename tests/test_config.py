@@ -353,3 +353,29 @@ def test_api_key_env_not_set_means_no_resolution() -> None:
     """When api_key_env is empty string, no env resolution occurs."""
     cfg = Config(llm=LLMConfig(provider="openai", api_key_env=""))
     assert cfg.llm.api_key == ""
+
+
+def test_api_base_default_empty() -> None:
+    """api_base default value is empty string."""
+    cfg = LLMConfig()
+    assert cfg.api_base == ""
+
+    full_cfg = Config()
+    assert full_cfg.llm.api_base == ""
+
+
+def test_api_base_from_config(
+    use_config: Callable[[dict[str, Any]], None],
+) -> None:
+    """api_base is loaded correctly from YAML config."""
+    use_config(
+        {
+            "llm": {
+                "provider": "ollama",
+                "model": "llama3",
+                "api_base": "http://localhost:11434",
+            },
+        }
+    )
+    cfg = load_config()
+    assert cfg.llm.api_base == "http://localhost:11434"

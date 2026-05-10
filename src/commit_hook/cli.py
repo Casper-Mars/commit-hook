@@ -33,6 +33,7 @@ CONFIG_TEMPLATE = """\
 llm:
   provider: openai           # openai | anthropic | ollama | deepseek | ...
   model: gpt-4o-mini
+  api_base: ""               # 可选，自定义 API 端点（Ollama/vLLM/企业网关）
   api_key_env: OPENAI_API_KEY  # 从环境变量读取，不存明文
   timeout: 10                # 秒
 

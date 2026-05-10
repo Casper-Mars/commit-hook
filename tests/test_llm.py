@@ -273,3 +273,32 @@ def test_llmresult_all_fields() -> None:
     assert result.accuracy == 2
     assert len(result.issues) == 2
     assert "specific" in result.suggestion
+
+
+def test_api_base_passed_to_litellm() -> None:
+    """When api_base is set, it is passed to litellm.completion."""
+    payload = {"passed": True, "score": 30, "accuracy": 8, "issues": [], "suggestion": ""}
+    mock_resp = _make_response(json.dumps(payload))
+    cfg = _make_config(api_key="sk-test")
+    cfg.api_base = "http://localhost:11434"
+
+    with patch("commit_hook.llm.litellm.completion", return_value=mock_resp) as mock_fn:
+        llm_evaluate("diff", "msg", cfg)
+
+    call_kwargs = mock_fn.call_args.kwargs
+    assert call_kwargs["api_base"] == "http://localhost:11434"
+
+
+def test_api_base_empty_not_passed() -> None:
+    """When api_base is empty, it is not passed to litellm.completion."""
+    payload = {"passed": True, "score": 30, "accuracy": 8, "issues": [], "suggestion": ""}
+    mock_resp = _make_response(json.dumps(payload))
+    cfg = _make_config(api_key="sk-test")
+    # explicitly ensure api_base is empty
+    cfg.api_base = ""
+
+    with patch("commit_hook.llm.litellm.completion", return_value=mock_resp) as mock_fn:
+        llm_evaluate("diff", "msg", cfg)
+
+    call_kwargs = mock_fn.call_args.kwargs
+    assert "api_base" not in call_kwargs

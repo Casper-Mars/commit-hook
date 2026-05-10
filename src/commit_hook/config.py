@@ -34,7 +34,7 @@ _DEF_EXCLUDE: list[str] = [
 ]
 _DEF_MAX_LINES = 500
 _TOP = frozenset({"llm", "rules", "diff"})
-_LLM = frozenset({"provider", "model", "api_key_env"})
+_LLM = frozenset({"provider", "model", "api_key", "api_key_env", "api_base"})
 _RULES = frozenset({"min_length", "forbid_patterns"})
 _DIFF = frozenset({"exclude", "max_lines"})
 
@@ -51,6 +51,7 @@ class LLMConfig:
     model: str = _DEF_MODEL
     api_key: str = ""
     api_key_env: str = ""
+    api_base: str = ""
 
 
 @dataclass
@@ -151,6 +152,7 @@ def _parse_llm(raw: dict[str, Any]) -> LLMConfig:
         provider=_get(raw, "provider", str, _DEF_PROVIDER),
         model=_get(raw, "model", str, _DEF_MODEL),
         api_key_env=_get(raw, "api_key_env", str, ""),
+        api_base=_get(raw, "api_base", str, ""),
     )
 
 
