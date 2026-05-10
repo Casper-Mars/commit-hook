@@ -4,7 +4,8 @@
 llm:
   provider: openai           # openai | anthropic | ollama | deepseek | ...
   model: deepseek-v4-flash
-  api_key_env: OPENAI_API_KEY  # 从环境变量读取，不存明文
+  api_base: "https://api.deepseek.com"               # 可选，自定义 API 端点（Ollama/vLLM/企业网关）
+  api_key_env: DEEPSEEK_API_KEY # 从环境变量读取，不存明文
   timeout: 10                # 秒
 
 rules:
