@@ -78,6 +78,11 @@ def check(file: str) -> None:
     # 1. Read commit message
     message = Path(file).read_text(encoding="utf-8").strip()
 
+    # FR-006: skip-validate marker — bail out early when present
+    if "[skip-validate]" in message:
+        click.echo("⚠️ 检测到 skip-validate 标记，跳过检查")
+        sys.exit(0)
+
     # 2. Load config
     config = load_config()
 

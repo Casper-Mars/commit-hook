@@ -255,6 +255,57 @@ class TestCheck:
         assert result.exit_code == 0
         assert "通过" in result.output
 
+    # ------------------------------------------------------------------
+    # FR-006: [skip-validate] marker tests
+    # ------------------------------------------------------------------
+
+    def test_skip_validate_marker_present(self, tmp_path: Path, monkeypatch: Any) -> None:
+        """Message with [skip-validate] marker → print skip message + exit 0.
+
+        All downstream checks (config, diff, LLM) are short-circuited.
+        """
+        monkeypatch.chdir(tmp_path)
+        msg_file = _create_commit_msg(tmp_path, "WIP: rough draft [skip-validate]")
+
+        load_config_mock = MagicMock()
+        get_diff_mock = MagicMock()
+        llm_evaluate_mock = MagicMock()
+
+        with (
+            patch("commit_hook.cli.load_config", load_config_mock),
+            patch("commit_hook.cli.get_diff", get_diff_mock),
+            patch("commit_hook.cli.llm_evaluate", llm_evaluate_mock),
+        ):
+            result = CliRunner().invoke(main, ["check", str(msg_file)])
+
+        assert result.exit_code == 0
+        assert "skip-validate" in result.output
+        assert "跳过检查" in result.output
+        load_config_mock.assert_not_called()
+        get_diff_mock.assert_not_called()
+        llm_evaluate_mock.assert_not_called()
+
+    def test_skip_validate_marker_absent_normal_flow(
+        self, tmp_path: Path, monkeypatch: Any
+    ) -> None:
+        """Message without [skip-validate] → normal P0 flow proceeds."""
+        monkeypatch.chdir(tmp_path)
+        msg_file = _create_commit_msg(tmp_path, "feat: add user login")
+
+        with (
+            _mock_config(),
+            patch("commit_hook.cli.get_diff", return_value="diff --git a/x b/x"),
+            patch(
+                "commit_hook.cli.llm_evaluate",
+                return_value=LLMResult(passed=True, score=85, accuracy=9),
+            ),
+        ):
+            result = CliRunner().invoke(main, ["check", str(msg_file)])
+
+        assert result.exit_code == 0
+        assert "通过" in result.output
+        assert "skip-validate" not in result.output
+
     def test_rule_violations_skip_llm(self, tmp_path: Path, monkeypatch: Any) -> None:
         """Local rule violations skip diff extraction and LLM entirely."""
         monkeypatch.chdir(tmp_path)
