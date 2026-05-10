@@ -34,20 +34,23 @@ uv run ruff check && uv run ruff format --check && uv run mypy src && uv run pyt
 src/commit_hook/
 ├── __init__.py      # 包 init
 ├── __main__.py      # python -m commit_hook
-├── cli.py           # click CLI: init / uninit / check
-├── config.py        # .commit-hook.yaml 加载（向上查找 + env var API Key）
+├── cli.py           # click CLI: init（hook + config 模板）/ uninit / check（含 skip-validate）
+├── config.py        # .commit-hook.yaml 加载（向上查找 + env var API Key + api_base）
 ├── diff.py          # git diff --cached 提取 + glob 过滤 + 行截断
-├── llm.py           # litellm 调用 + JSON Mode + 容错降级
+├── llm.py           # litellm 调用 + JSON Mode + 容错降级 + api_base 传递
 ├── rules.py         # 本地规则：min_length + forbid_patterns
 └── reporter.py      # rich 终端输出：绿✅/红❌/黄⚠️
 
 tests/
-├── test_config.py   # 26 tests
+├── test_config.py   # 28 tests
 ├── test_diff.py     # 39 tests
 ├── test_rules.py    # 15 tests
-├── test_llm.py      # 19 tests
-├── test_cli.py      # 13 tests
+├── test_llm.py      # 21 tests
+├── test_cli.py      # 18 tests
 └── test_reporter.py # 12 tests
+├── test_e2e.py      #  8 tests
+├── test_edge_cases.py  # 46 tests
+├── test_integration.py # 19 tests
 ```
 
 ## 编码规范
@@ -83,6 +86,8 @@ llm:
   provider: openai          # openai / anthropic / deepseek / ollama
   model: gpt-4o-mini
   api_key_env: OPENAI_API_KEY  # API Key 只从环境变量读，禁止明文
+  api_base: ""              # 可选，自定义 API 端点（Ollama/vLLM/企业网关）
+  timeout: 10               # 超时秒数
 
 rules:
   min_length: 10            # commit message 最小长度
@@ -117,6 +122,7 @@ git commit
   → commit-msg hook
     → commit-hook check "$1"
       → 读取 message
+      → [skip-validate]? → ⚠️ 跳过检查，exit 0
       → 本地规则检查（rules.py）→ 违规则 ❌ exit 1
       → git diff --cached（diff.py）→ 过滤 + 截断
       → 空 diff → ✅ exit 0
@@ -132,4 +138,7 @@ git commit
 - LLM 不可用（超时/网络/API Key 缺失）→ 降级放行（exit 0），不阻断提交
 - 配置向上查找（子目录执行自动找到仓库根配置）
 - litellm 一把梭：换模型只改 config 的 `model` 字段，代码零改动
+- 支持 `api_base` 自定义端点（Ollama 本地 / vLLM 自建 / 企业网关），配置为空时走官方地址
+- init 命令同步生成带注释的 `.commit-hook.yaml` 模板，不覆盖已有配置
+- `[skip-validate]` 标记在 commit message 中可跳过全部检查
 - 测试不调用真实 LLM API（mock `litellm.completion`）

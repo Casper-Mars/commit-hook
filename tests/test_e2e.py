@@ -103,6 +103,10 @@ class RateLimitError(Exception):
     def __init__(self, message="rate limit", **kw):
         super().__init__(message)
 
+class InternalServerError(Exception):
+    def __init__(self, message="internal server error", **kw):
+        super().__init__(message)
+
 class ServiceUnavailableError(Exception):
     def __init__(self, message="service unavailable", **kw):
         super().__init__(message)

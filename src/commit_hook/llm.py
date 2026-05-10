@@ -76,6 +76,7 @@ def llm_evaluate(diff: str, message: str, cfg: LLMConfig) -> LLMResult:
         litellm.exceptions.APIError,
         litellm.exceptions.APIConnectionError,
         litellm.exceptions.AuthenticationError,
+        litellm.exceptions.InternalServerError,
         litellm.exceptions.RateLimitError,
         litellm.exceptions.ServiceUnavailableError,
     ) as exc:

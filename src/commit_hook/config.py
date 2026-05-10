@@ -33,8 +33,8 @@ _DEF_EXCLUDE: list[str] = [
     "*.pem",
 ]
 _DEF_MAX_LINES = 500
-_TOP = frozenset({"llm", "rules", "diff"})
-_LLM = frozenset({"provider", "model", "api_key", "api_key_env", "api_base"})
+_TOP = frozenset({"llm", "rules", "diff", "output"})
+_LLM = frozenset({"provider", "model", "api_key", "api_key_env", "api_base", "timeout"})
 _RULES = frozenset({"min_length", "forbid_patterns"})
 _DIFF = frozenset({"exclude", "max_lines"})
 
